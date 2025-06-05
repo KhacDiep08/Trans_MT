@@ -145,12 +145,13 @@ class Transformer(nn.Module):
         return (src != self.pad_idx).unsqueeze(1).unsqueeze(2)
 
     def make_tgt_mask(self, tgt):
+        if not isinstance(tgt, torch.Tensor):
+            tgt = torch.tensor(tgt, dtype=torch.long, device=self.device)
         tgt_pad_mask = (tgt != self.pad_idx).unsqueeze(1).unsqueeze(3)
         seq_len = tgt.size(1)
         tgt_sub_mask = torch.tril(torch.ones((seq_len, seq_len), device=tgt.device)).bool()
-        tgt_sub_mask = tgt_sub_mask.unsqueeze(0).unsqueeze(1)
-        tgt_mask = tgt_pad_mask & tgt_sub_mask
-        return tgt_mask
+        return tgt_pad_mask & tgt_sub_mask
+
 
     def forward(self, input_ids=None, decoder_input_ids=None, labels=None):
         src = input_ids
@@ -164,4 +165,4 @@ class Transformer(nn.Module):
         if labels is not None:
             loss_fn = nn.CrossEntropyLoss(ignore_index=self.pad_idx)
             loss = loss_fn(output.view(-1, output.size(-1)), labels.view(-1))
-        return {"loss": loss, "logits": output} if loss is not None else {"logits": output}
+        return {"loss": loss, "logits": output} if loss is not None else {"logits": output},
