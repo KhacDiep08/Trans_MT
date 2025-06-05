@@ -152,10 +152,16 @@ class Transformer(nn.Module):
         tgt_mask = tgt_pad_mask & tgt_sub_mask
         return tgt_mask
 
-    def forward(self, src, tgt):
+    def forward(self, input_ids=None, decoder_input_ids=None, labels=None):
+        src = input_ids
+        tgt = decoder_input_ids
         src_mask = self.make_src_mask(src)
         tgt_mask = self.make_tgt_mask(tgt)
         enc_src = self.encoder(src, src_mask)
         dec_tgt = self.decoder(tgt, enc_src, tgt_mask, src_mask)
         output = self.generator(dec_tgt)
-        return output
+        loss = None
+        if labels is not None:
+            loss_fn = nn.CrossEntropyLoss(ignore_index=self.pad_idx)
+            loss = loss_fn(output.view(-1, output.size(-1)), labels.view(-1))
+        return {"loss": loss, "logits": output} if loss is not None else {"logits": output}
