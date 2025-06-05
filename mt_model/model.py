@@ -134,7 +134,7 @@ class Decoder(nn.Module):
         return x
 
 class Transformer(nn.Module):
-    def __init__(self, src_vocab_size, tgt_vocab_size, d_model=512, num_layers=6, num_heads=8, d_ff=2048, dropout=0.1, pad_idx=0):
+    def __init__(self, src_vocab_size, tgt_vocab_size, d_model=512, num_layers=6, num_heads=8, d_ff=2048, dropout=0.1, pad_idx=0,device=None):
         super().__init__()
         self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.encoder = Encoder(src_vocab_size, d_model, num_layers, num_heads, d_ff, dropout, pad_idx)
