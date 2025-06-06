@@ -159,6 +159,8 @@ class Transformer(nn.Module):
             input_ids = input_ids.to(self.device)
         if labels is not None:
             labels = labels.to(self.device)
+            if labels.size(1) < 2:
+                raise ValueError("Sequence length of labels phải >= 2 để tạo decoder inputs.")
             decoder_input_ids = labels[:, :-1]
             decoder_labels = labels[:, 1:]
         else:
