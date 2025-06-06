@@ -13,6 +13,5 @@ class MachineTranslationDataset(Dataset):
     def __getitem__(self, idx):
         return {
             "input_ids": torch.tensor(self.src_encoded[idx], dtype=torch.long),
-            "decoder_input_ids": torch.tensor(self.tgt_input[idx], dtype=torch.long),
-            "labels": torch.tensor(self.tgt_output[idx], dtype=torch.long)
+            "labels": torch.tensor(self.tgt_output[idx], dtype=torch.long),
         }
