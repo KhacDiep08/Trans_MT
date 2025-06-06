@@ -155,24 +155,24 @@ class Transformer(nn.Module):
 
 
     def forward(self, input_ids=None, labels=None):
-    if input_ids is not None:
-        input_ids = input_ids.to(self.device)
-    if labels is not None:
-        labels = labels.to(self.device)
-        decoder_input_ids = labels[:, :-1]
-        decoder_labels = labels[:, 1:]
-    else:
-        raise ValueError("Phải cung cấp 'labels' để huấn luyện.")
+        if input_ids is not None:
+            input_ids = input_ids.to(self.device)
+        if labels is not None:
+            labels = labels.to(self.device)
+            decoder_input_ids = labels[:, :-1]
+            decoder_labels = labels[:, 1:]
+        else:
+            raise ValueError("Phải cung cấp 'labels' để huấn luyện.")
 
-    src_mask = self.make_src_mask(input_ids)
-    tgt_mask = self.make_tgt_mask(decoder_input_ids)
+        src_mask = self.make_src_mask(input_ids)
+        tgt_mask = self.make_tgt_mask(decoder_input_ids)
 
-    enc_src = self.encoder(input_ids, src_mask)
-    dec_output = self.decoder(decoder_input_ids, enc_src, tgt_mask, src_mask)
-    output = self.generator(dec_output)
+        enc_src = self.encoder(input_ids, src_mask)
+        dec_output = self.decoder(decoder_input_ids, enc_src, tgt_mask, src_mask)
+        output = self.generator(dec_output)
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=self.pad_idx)
-    loss = loss_fn(output.view(-1, output.size(-1)), decoder_labels.reshape(-1))
+        loss_fn = nn.CrossEntropyLoss(ignore_index=self.pad_idx)
+        loss = loss_fn(output.view(-1, output.size(-1)), decoder_labels.reshape(-1))
 
-    return loss, output
+        return loss, output
 
