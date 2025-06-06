@@ -1,22 +1,37 @@
-from torch.nn.utils.rnn import pad_sequence
+import torch
 
 class DataCollatorMT:
-    def __init__(self, pad_id=0):
-        self.pad_id = pad_id
+    def __init__(self, tokenizer, padding=True, max_length=None, pad_to_multiple_of=None):
+        self.tokenizer = tokenizer
+        self.padding = padding
+        self.max_length = max_length
+        self.pad_to_multiple_of = pad_to_multiple_of
 
     def __call__(self, batch):
-        input_ids = pad_sequence(
-            [item["input_ids"] for item in batch],
-            batch_first=True,
-            padding_value=self.pad_id
-        )
-        labels = pad_sequence(
-            [item["labels"] for item in batch],
-            batch_first=True,
-            padding_value=-100
+        input_ids = [example["input_ids"] for example in batch]
+        attention_mask = [example["attention_mask"] for example in batch]
+        labels = [example["labels"] for example in batch]
+
+        # Pad input_ids và attention_mask
+        inputs = self.tokenizer.pad(
+            {"input_ids": input_ids, "attention_mask": attention_mask},
+            padding=self.padding,
+            max_length=self.max_length,
+            pad_to_multiple_of=self.pad_to_multiple_of,
+            return_tensors="pt"
         )
 
-        return {
-            "input_ids": input_ids,
-            "labels": labels
-        }
+        # Pad labels
+        labels_padded = self.tokenizer.pad(
+            {"input_ids": labels},
+            padding=self.padding,
+            max_length=self.max_length,
+            pad_to_multiple_of=self.pad_to_multiple_of,
+            return_tensors="pt"
+        )["input_ids"]
+
+        # Replace padding token id with -100 for labels (to ignore in loss)
+        labels_padded[labels_padded == self.tokenizer.pad_token_id] = -100
+
+        inputs["labels"] = labels_padded
+        return inputs

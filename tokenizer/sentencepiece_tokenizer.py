@@ -7,6 +7,10 @@ class SentencePieceTokenizer:
         self.model_type = model_type
         self.character_coverage = character_coverage
         self.sp = None
+        
+    def __call__(self, text):
+        input_ids = self.encode(text)
+        return {"input_ids": input_ids}
 
     def export_text_file(self, df, filename, col):
         with open(filename, 'w', encoding='utf-8') as f:
@@ -28,15 +32,23 @@ class SentencePieceTokenizer:
                 raise ValueError("model_file or model_prefix must be provided to load model.")
             model_file = f"{self.model_prefix}.model"
         self.sp = spm.SentencePieceProcessor()
-        self.sp.load(model_file)
+        try:
+            self.sp.load(model_file)
+        except Exception as e:
+            import os
+            print(f"Không thể load file model: {model_file}")
+            print(f"Error: {e}")
+            print(f"Thư mục hiện tại: {os.getcwd()}")
+            raise  # ném lại lỗi để không silent
+
 
     def encode(self, sentences):
         if self.sp is None:
             raise ValueError("Model not loaded. Call load() first.")
         if isinstance(sentences, str):
-            return self.sp.encode_as_pieces(sentences)
+            return self.sp.encode_as_ids(sentences)
         elif isinstance(sentences, list):
-            return [self.sp.encode_as_pieces(s) for s in sentences]
+            return [self.sp.encode_as_ids(s) for s in sentences]
         else:
             raise TypeError("Input must be str or list of str.")
 

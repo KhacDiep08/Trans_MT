@@ -1,21 +1,14 @@
 import torch
 from torch.utils.data import Dataset
 from transformers import Trainer, TrainingArguments
-from model import Transformer
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
-class ExampleDataset(Dataset):
-    def __init__(self, src_data, tgt_data):
-        self.src = src_data
-        self.tgt = tgt_data
+from data.custom_dataset import MachineTranslationDataset
+from data.data_collator import DataCollatorMT  # nếu bạn dùng, hoặc bỏ
+from mt_model.model import Transformer
+from tokenizer.sentencepiece_tokenizer import SentencePieceTokenizer
 
-    def __len__(self):
-        return len(self.src)
-
-    def __getitem__(self, idx):
-        return {
-            "input_ids": torch.tensor(self.src[idx], dtype=torch.long),
-            "labels": torch.tensor(self.tgt[idx], dtype=torch.long),
-        }
 
 def collate_fn(batch):
     input_ids = [item["input_ids"] for item in batch]
@@ -25,11 +18,32 @@ def collate_fn(batch):
     return {"input_ids": input_ids, "labels": labels}
 
 def main():
-    src_data = []
-    tgt_data = []
+    # Load tokenizer
+    tokenizer_en = SentencePieceTokenizer(model_prefix="tokenizer/vocab/spm_en")
+    tokenizer_en.load()
+    tokenizer_vi = SentencePieceTokenizer(model_prefix="tokenizer/vocab/spm_vi")
+    tokenizer_vi.load()
+            
+    # Load data
+    data = pd.read_csv("data/preprocessed_200k.csv").head(1000)
+    
+    # Chia train (70%) và temp (30%)
+    train_data, temp_data = train_test_split(data, test_size=0.3, random_state=42, shuffle=True)
 
-    train_dataset = ExampleDataset(src_data, tgt_data)
+    # Chia temp thành eval (15%) và test (15%)
+    eval_data, test_data = train_test_split(temp_data, test_size=0.5, random_state=42, shuffle=True)
+    
+    print(f"Train size: {len(train_data)}, Eval size: {len(eval_data)}, Test size: {len(test_data)}")
 
+    # Load datasets
+    train_dataset = MachineTranslationDataset(train_data, tokenizer_en, tokenizer_vi, src_lang='en', tgt_lang='vi', max_length=128)
+    eval_dataset = MachineTranslationDataset(eval_data, tokenizer_en, tokenizer_vi, src_lang='en', tgt_lang='vi', max_length=128)
+    test_dataset = MachineTranslationDataset(test_data, tokenizer_en, tokenizer_vi, src_lang='en', tgt_lang='vi', max_length=128)
+    
+    print(train_dataset[0])  # Kiểm tra dữ liệu đầu vào
+    
+    # Load model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = Transformer(
         src_vocab_size=32000,
         tgt_vocab_size=32000,
@@ -39,14 +53,17 @@ def main():
         d_ff=2048,
         dropout=0.1,
         pad_idx=0
-    )
+    ).to(device)
 
+    print(f"Model parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    # Train arguments
     training_args = TrainingArguments(
         output_dir="./checkpoints",
         num_train_epochs=3,
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",  # eval_strategy deprecated
         save_strategy="epoch",
         logging_dir="./logs",
         logging_steps=10,
@@ -58,22 +75,24 @@ def main():
         greater_is_better=False,
     )
 
-    def compute_loss(model, inputs, return_outputs=False):
-        outputs = model(inputs["input_ids"], inputs["labels"][:, :-1])
-        logits = outputs
-        shift_logits = logits[..., :-1, :].contiguous()
-        shift_labels = inputs["labels"][:, 1:].contiguous()
-        loss_fct = torch.nn.CrossEntropyLoss(ignore_index=0)
-        loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-        return (loss, outputs) if return_outputs else loss
+    class CustomTrainer(Trainer):
+        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+            device = next(model.parameters()).device
+            inputs = {k: v.to(device) for k, v in inputs.items()}
 
-    trainer = Trainer(
+            loss, outputs = model(input_ids=inputs['input_ids'], labels=inputs['labels'])
+
+            if return_outputs:
+                return loss, outputs
+            return loss
+
+        
+    trainer = CustomTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        tokenizer=None,
+        eval_dataset=eval_dataset,
         data_collator=collate_fn,
-        compute_loss=compute_loss
     )
 
     trainer.train()
