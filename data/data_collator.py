@@ -10,7 +10,7 @@ class DataCollatorMT:
     def __call__(self, batch):
         input_ids = [example["input_ids"] for example in batch]
         attention_mask = [example["attention_mask"] for example in batch]
-        labels = [example["labels"] for example in batch]
+        labels = [example["labels"] for example in batch]   
 
         # Pad input_ids và attention_mask
         inputs = self.tokenizer.pad(
